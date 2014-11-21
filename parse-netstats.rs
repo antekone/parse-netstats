@@ -47,12 +47,25 @@ fn parse_file<R: Reader>(reader: &mut BufferedReader<R>) {
 
         // Locate the date in the log line. This is done by using the `date_re` regular expression.
         let rfc2822_date_str = match date_re.captures(lineslice) {
-            Some(caps) => caps.at(1),
+            // `.captures(lineslice)` above returns Option<...> wrapping type. I need to unwrap the
+            // enclosing type. I'm unwrapping it here, but only if Option<> contains something. If
+            // it doesn't contain anything, it means that the regular expression didn't match
+            // anything in the buffer. So:
+            //
+            // In case there are any matches:
+            Some(caps) => caps.at(1), // Return 1st captured match.
+
+            // In case of no matches:
             None       => fail!("Can't find the date in line {}", lineno)
         };
 
         println!("date: {}", rfc2822_date_str);
 
+        // Here I'm trying to match the rest of the line against `if_re` regular expression. There
+        // can be multiple interfaces defined, each with its own RX and TX values, so I need to use
+        // a loop that will try to find multiple occurencies of `if_re` in the whole line.
+
+        // If there are no matches, the loop simply doesn't iterate even once.
         for caps in if_re.captures_iter(lineslice) {
             let ifname = caps.at(1);
             let rxbytes = caps.at(2);
@@ -61,7 +74,8 @@ fn parse_file<R: Reader>(reader: &mut BufferedReader<R>) {
             println!("if: {}, rx: {}, tx: {}", ifname, rxbytes, txbytes);
         }
 
-
+        // Whole log is quite long, so for debug purposes I'm just limiting the parsing program
+        // only to work with first 10 lines. Later this limitation will be removed.
         lineno += 1;
         if lineno > 10 { break; }
     }
